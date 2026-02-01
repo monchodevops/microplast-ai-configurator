@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { getPotRecommendation } from '../services/geminiService';
 import { RecommendationResponse } from '../types';
+import { MICROPLAST_CATALOG } from '../catalog';
 
 interface AIAssistantProps {
   isWidget?: boolean;
@@ -13,15 +14,37 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isWidget = false }) => {
   const [style, setStyle] = useState<'moderno' | 'rustico' | 'minimalista'>('moderno');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<RecommendationResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!plantName) return;
     
     setIsLoading(true);
-    const recommendation = await getPotRecommendation({ plantName, environment, style });
-    setResult(recommendation);
-    setIsLoading(false);
+    setError(null);
+    setResult(null);
+
+    try {
+      const recommendation = await getPotRecommendation({ plantName, environment, style });
+      setResult(recommendation);
+    } catch (err: any) {
+      console.error(err);
+      if (err.message === "API_KEY_MISSING") {
+        setError("Error de configuración: Falta la API_KEY en Netlify. Por favor, revisa las variables de entorno.");
+      } else {
+        setError("No pudimos conectar con el asistente de IA. Usando recomendación genérica.");
+        // Fallback para no dejar al usuario sin respuesta
+        const fallback = MICROPLAST_CATALOG[0];
+        setResult({
+          potName: fallback.fullName,
+          reasoning: "Hubo un problema técnico momentáneo, pero basándonos en tu consulta, esta es una de nuestras macetas más versátiles que seguramente quedará genial con tu planta.",
+          url: fallback.url,
+          dimensions: fallback.dimensions
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const shareToWhatsApp = () => {
@@ -91,6 +114,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isWidget = false }) => {
                 {isLoading ? 'Analizando Catálogo...' : 'Obtener Recomendación'}
               </button>
             </form>
+
+            {error && (
+              <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                <p className="text-orange-800 text-[10px] font-bold uppercase tracking-wider mb-1">Aviso del Sistema</p>
+                <p className="text-orange-900 text-xs leading-relaxed">{error}</p>
+              </div>
+            )}
           </div>
           
           <div className="min-h-[450px] flex items-center justify-center">
